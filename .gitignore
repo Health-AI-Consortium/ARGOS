@@ -1,2 +1,5 @@
-argos_layout/
+argos_layout/argos_layout/Train/
+argos_layout/argos_layout/Validation/
+credentials.py
 *.egg-info
+private_key

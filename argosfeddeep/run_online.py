@@ -16,7 +16,10 @@ import argosfeddeep.data_augmentation as aug
 import argosfeddeep.models as mod
 from typing import Any
 
-data_path = "/home/swier/Documents/healthAI_argos/argos_layout/argos_layout/"
+
+local_test_path = "/home/swier/Documents/argos_dataset/argos_layout/"
+data_path = os.environ.get('DATA_PATH', local_test_path)
+# data_path = local_test_path
 # data_path = '/mnt/data'
 
 #with open (os.path.join(param_dir, params_file),'w') as fp:
@@ -256,7 +259,7 @@ def _end_graph_tensorflow(self):
         tf.summary.trace_export(name="graph", step=0)
 
 
-def get_batch_full(ct_slices, params):
+def get_batch_full(ct_slices, client_ct_slices, params):# params, client_id):
     # ct_path = os.path.join(patient_path, 'CT')
     # gt_path = os.path.join(patient_path, 'GT')
     # pet_path = os.path.join(patient_path, 'PT')
@@ -265,9 +268,11 @@ def get_batch_full(ct_slices, params):
     ct = np.zeros(shape=[params['batch_size'], 512, 512, params['patch_shape'][2]])
     gt = np.zeros(shape=[params['batch_size'], 512, 512, 1])
 
+    # client_ct_slices = params[f'client{client_id}_samples']
+
     for layer in range(0, params['batch_size']):
         while True:
-            random_case = random.choice(list(ct_slices))
+            random_case = random.choice(list(client_ct_slices))
             if len(ct_slices[random_case]) != 0:
                 break
             else:
@@ -431,7 +436,7 @@ def main(model_weights: Any, params: dict):
     train_summary_writer = tf.summary.create_file_writer(train_log_dir)
     val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
-
+    print("reading training and validation slices", flush = True)
     # Load training and validation data
     train_slices = utl.read_slices(os.path.join(data_path,'assets','slices_training_modified.json'))
     validation_slices = utl.read_slices(os.path.join(data_path,'assets','slices_validation_modified.json'))
@@ -445,14 +450,22 @@ def main(model_weights: Any, params: dict):
 
     template = 'Iteration {}, Loss: {:.5}, Dice: {:.5}'
 
+    node_id = os.environ.get('NODE_ID', 0)
+
+    print("starting training loop", flush = True)
     # Start training loop
     for iteration_deep in range(0, params['num_steps'] + 1):
-        _start_graph_tensorflow(train_log_dir)
-        ct_batch, gt_batch = get_batch_full(train_slices, params)
+        # _start_graph_tensorflow(train_log_dir)
+        
+        client_train_slices = params[f'client{node_id}_train_samples']
+        ct_batch, gt_batch = get_batch_full(train_slices, client_train_slices, params)
+        # print("got training batch, training now..")
 
+
+        # tf.profiler.experimental.stop(save=False)
         train_pred = train_on_batch(ct_batch, gt_batch)
 
-        _end_graph_tensorflow(train_summary_writer)
+        # _end_graph_tensorflow(train_summary_writer)
 
         # Evaluation step during training.
         if iteration_deep % params['train_eval_step'] == 0:
@@ -471,7 +484,8 @@ def main(model_weights: Any, params: dict):
         # Evaluation step for validation.
         if iteration_deep % params['val_eval_step'] == 0:
             # ct_batch_val, gt_batch_val = dset_val
-            ct_batch_val, gt_batch_val = get_batch_full(validation_slices, params)
+            client_val_slices = params[f'client{node_id}_val_samples']
+            ct_batch_val, gt_batch_val = get_batch_full(validation_slices, client_val_slices, params)
             val_pred = validate_on_batch(ct_batch_val, gt_batch_val)
 
             # Write validation information to log
@@ -486,10 +500,10 @@ def main(model_weights: Any, params: dict):
                                   validation_dice))
 
             iteration_number.append(iteration_deep)
-            train_loss_list.append(train_loss.result().numpy())
-            train_dice_list.append(train_dice.numpy())
-            validation_loss_list.append(validation_loss.result().numpy())
-            validation_dice_list.append(validation_dice.numpy())
+            train_loss_list.append(float(train_loss.result().numpy()))
+            train_dice_list.append(float(train_dice.numpy()))
+            validation_loss_list.append(float(validation_loss.result().numpy()))
+            validation_dice_list.append(float(validation_dice.numpy()))
 
             # Earling stopping when loss in the past 'patience' train_eval_steps
             # is smaller than 'min_delta'. Breaks loop.
@@ -520,9 +534,11 @@ def main(model_weights: Any, params: dict):
                      'validation_loss':validation_loss_list,
                      'validation_dice':validation_dice_list}
 
+    # model_metrics['weights'] = model_weights_list
     # TODO: make model metrics serializable so they work
     return {
-            "model weights" : model_weights_list}#,
-            #"metrics" :  model_metrics}#, training_size
+            "model weights" : model_weights_list,
+            "metrics" :  model_metrics}#, training_size
+    return model_metrics
 
 

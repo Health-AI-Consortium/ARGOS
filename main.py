@@ -5,52 +5,91 @@ main entry point for running the ARGOS usecase on Vantage6
 from argosfeddeep.run_online import dice_bce
 from argosfeddeep.models import mod_resnet
 from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
+from vantage6.client import UserClient as Client
 from pathlib import Path
 import json
 import tensorflow as tf
+import credentials
+import numpy as np
+import time
+
+def main(client: Client, input: dict, organizations: list):
+    # Run the central method on 1 node and get the results (assuming we have one collab, while we're testing like this)
+    # collab = client.collaboration.list()
+    # print(f'collab: {collab}')
+    # ['id']
 
 
+    collab = client.collaboration.list()['data'][0]['id']
 
-def main(client, input: dict, organizations: list):
-    # Run the central method on 1 node and get the results
     task = client.task.create(
         input_= input,
         organizations=organizations,
+        # organizations=[3],
+        image = "sgarst/argos:dev",
+        collaboration = collab,
+        name="argos_central",
+        description="central part of argos algorithm"
     )
+
+    print(task)
     results = client.wait_for_results(task.get("id"))
-    # print(results)
+    print(results)
+
     return results
 
 
 
 
 if __name__ == "__main__":
-    # TODO: make sure we run the central task when this file is ran
+    local_config_path = "/home/swier/Documents/argos_dataset/argos_layout/assets/params.json"
+
     current_path = Path(__file__).parent
-    data_path = f'{current_path}/argos_layout/argos_layout/'
+    data_path = f'{current_path}/../argos_dataset/argos_layout/'
+
+  
 
     # read in config file
-    with open(f'{current_path}/config.json', "r") as fp:
+    with open(local_config_path, "r") as fp:
         config = json.load(fp)
+
+
+
+    client = Client(
+        credentials.server_url, credentials.server_port, credentials.server_api, log_level = 'debug'
+    )
+    client.authenticate(credentials.usn, credentials.psswrd)
+    client.setup_encryption("/home/swier/Documents/healthAI_argos/private_key")
+    
+    organizations = client.organization.list()['data']
+    selected_orgs = np.array(organizations)[[org['name'].startswith('ARGOS') for org in organizations]]
+
+    
+    participating_org_ids = [selected_org['id'] for selected_org in selected_orgs]
+    central_org_id = participating_org_ids[2]
+
+
 
     # setup vantage stuff
     task_input={
         "method":"central",
+        # "method" : "test_gpu",
         "kwargs": {
             "config": config,
+            # "rounds": 2,
+            # "model_size": 200,
+            "participating_ids": participating_org_ids[:3]
             # "model_weights" : weights_list
-        }
+        },
     }
 
-    ## Mock client
-    # TODO: replace this with 'actual' v6 client
-    client = MockAlgorithmClient(
-        datasets=[[],[]],
-        module="argosfeddeep"
-    )
+    # print(f'config: {config} ')
 
-    organizations = client.organization.list()
-    org_ids = [organizations[0]['id']] # only send central task to one org. TODO: figure out if this needs to be an external/mock org later on (for safety)
+    # print(f'participating org ids: {participating_org_ids}')
 
+    # print(f'selected org ids: {selected_org_ids}')
 
-    main(client, task_input, org_ids)
+    results = main(client, task_input, [central_org_id])
+
+    with open(f'argos_results_{time.time()}.json', "w") as fp:
+        json.dump(results, fp)

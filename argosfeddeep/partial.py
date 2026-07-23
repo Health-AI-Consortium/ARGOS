@@ -1,15 +1,24 @@
 import pandas as pd
 import numpy as np
 
+from vantage6.algorithm.tools.util import info, warn, error
 import argosfeddeep.models as mod
 from vantage6.algorithm.tools.decorators import data
+
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'        # suppresses INFO and WARNING from TF C++ backend
+os.environ['CUDA_MODULE_LOADING'] = 'LAZY'       # reduces noisy CUDA init messages
+os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'  # also helps with fragmentation
+os.environ['TF_DISABLE_MLIR_CRASH_REPRODUCER'] = '1'
 import tensorflow as tf
+from .preprocess import preprocess
 from .run_online import main, dice_bce
 # from .local import *
 
 
-@data(0)
-def test_train_locally(config: dict, model_weights:list[np.ndarray, np.ndarray]):
+# @data(0)
+def test_train_locally(config: int, model_weights:list):
+# def test_train_locally(config: dict, model_weights:list):
     # reshape the dataframe into a 4d array (we're hardcoding for now, while it is test data anyway)
     # this part should also change when (mock) data of the right format is available
     # dset_train = prep_data(df_train, config['patch_shape'].copy())
@@ -17,12 +26,26 @@ def test_train_locally(config: dict, model_weights:list[np.ndarray, np.ndarray])
     # print(f'config: {config}')
     # print(f'dsets: {dset_train.take(1)}') 
     # print(dset_train.shape)
-    main(model_weights, config)
+    info('managed to get into partial function!')
+    # main(model_weights, fake_config)
     # print(dset_train, dset_val)    
     # print(labels_train, labels_val)
 
-@data(0)  # TODO: change this to the right type of database once we know what that needs to be
+# @data(1)
 def train_locally(config: dict, model_weights: list):
+    # allow usage of more memory to prevent OOM issues
+    gpus = tf.config.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
+    print("finished setting memory growth", flush = True)
+    # Disable profiler before any GPU ops to prevent CUPTI segfault in containers
+    try:
+        tf.profiler.experimental.stop(save=False)
+    except tf.errors.UnavailableError:
+        pass  # profiler wasn't running, that's fine
+
+    preprocess(os.environ.get('DATA_PATH', None))
+    print("finished preprocessing, starting training..", flush = True)
     return main(model_weights, config)
  
 
