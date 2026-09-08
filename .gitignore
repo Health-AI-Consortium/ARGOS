@@ -3,3 +3,4 @@ argos_layout/argos_layout/Validation/
 credentials.py
 *.egg-info
 private_key
+.flake

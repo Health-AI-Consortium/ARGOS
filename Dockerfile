@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM ghcr.io/vantage6/infrastructure/algorithm-base
+FROM ghcr.io/vantage6/infrastructure/algorithm-base:4.15
 
 # System dependencies + CUDA keyring in one layer
 RUN apt-get update && \
