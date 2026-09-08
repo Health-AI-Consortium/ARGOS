@@ -44,6 +44,7 @@ def train_locally(config: dict, model_weights: list):
     except tf.errors.UnavailableError:
         pass  # profiler wasn't running, that's fine
 
+    print(f'starting preprocessing with data path: {os.environ.get("DATA_PATH", None)}')
     preprocess(os.environ.get('DATA_PATH', None))
     print("finished preprocessing, starting training..", flush = True)
     return main(model_weights, config)

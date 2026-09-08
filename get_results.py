@@ -5,7 +5,7 @@ import json
 import time
 
 
-task_id = 359
+task_id = 14
 
 
 
@@ -19,7 +19,7 @@ client.setup_encryption("/home/swier/Documents/healthAI_argos/private_key")
 
 results = client.result.from_task(task_id)
 
-print(results)
+# print(results)
 
-# with open(f'timing_results_{time.time()}', "w") as fp:
-#     json.dump(times, fp)
+with open(f'argos_results_{time.time()}.json', "w") as fp:
+    json.dump(results, fp)

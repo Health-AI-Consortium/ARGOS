@@ -26,7 +26,7 @@ def main(client: Client, input: dict, organizations: list):
         input_= input,
         organizations=organizations,
         # organizations=[3],
-        image = "sgarst/argos:dev",
+        image = "sgarst/argos:0.9.0",
         collaboration = collab,
         name="argos_central",
         description="central part of argos algorithm"
@@ -42,7 +42,7 @@ def main(client: Client, input: dict, organizations: list):
 
 
 if __name__ == "__main__":
-    local_config_path = "/home/swier/Documents/argos_dataset/argos_layout/assets/params.json"
+    local_config_path = "/home/swier/Documents/healthAI_argos/config.json"
 
     current_path = Path(__file__).parent
     data_path = f'{current_path}/../argos_dataset/argos_layout/'
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     
     participating_org_ids = [selected_org['id'] for selected_org in selected_orgs]
-    central_org_id = participating_org_ids[2]
+    central_org_id = participating_org_ids[0]
 
 
 

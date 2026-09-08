@@ -2,7 +2,7 @@ import os
 from statistics import mode
 from time import sleep
 import time
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import numpy as np
 import json
@@ -456,8 +456,10 @@ def main(model_weights: Any, params: dict):
     # Start training loop
     for iteration_deep in range(0, params['num_steps'] + 1):
         # _start_graph_tensorflow(train_log_dir)
-        
-        client_train_slices = params[f'client{node_id}_train_samples']
+        if params.get['central_eval', False] == True:
+            client_train_slices = np.concat([f'client{i}_train_samples' for i in range(2)])
+        else:
+            client_train_slices = params[f'client{node_id}_train_samples']
         ct_batch, gt_batch = get_batch_full(train_slices, client_train_slices, params)
         # print("got training batch, training now..")
 
@@ -484,7 +486,11 @@ def main(model_weights: Any, params: dict):
         # Evaluation step for validation.
         if iteration_deep % params['val_eval_step'] == 0:
             # ct_batch_val, gt_batch_val = dset_val
-            client_val_slices = params[f'client{node_id}_val_samples']
+
+            if params.get['central_eval', False] == True:
+                client_val_slices = np.concat([f'client{i}_val_samples' for i in range(2)])
+            else:
+                client_val_slices = params[f'client{node_id}_val_samples']
             ct_batch_val, gt_batch_val = get_batch_full(validation_slices, client_val_slices, params)
             val_pred = validate_on_batch(ct_batch_val, gt_batch_val)
 

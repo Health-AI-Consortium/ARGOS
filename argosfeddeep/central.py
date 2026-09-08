@@ -82,6 +82,11 @@ def central(
                     optimizer=optimizer_function,
                     loss=loss_function)
 
+    init_weights_file = config.get("init_weights", None)
+    if init_weights_file is not None:
+        init_weights_path = f'{os.environ.get("DATA_PATH")}/{init_weights_file}'
+        init_model.load_weights(init_weights_path)
+
     init_weights = init_model.get_weights()
     weights_list = [init_weight.tolist() for init_weight in init_weights]
     # rng = np.random.default_rng(seed=7)
