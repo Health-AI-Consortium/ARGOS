@@ -46,9 +46,9 @@ def test_central(client: AlgorithmClient) -> Any:
     organizations = client.organization.list()
 
     return {"organizations": organizations}
-    org_ids = [organization.get("id") for organization in organizations]
+    # org_ids = [organization.get("id") for organization in organizations]
 
-    config = json.load(config_path)
+    # config = json.load(config_path)
     
 
 @algorithm_client
