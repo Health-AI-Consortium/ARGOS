@@ -4,11 +4,16 @@ The data folder is read-only by intent: a vantage6 node may mount it read-only, 
 folder is shared by every algorithm the node allows. Everything ARGOS produces (resolved slice
 indexes, parameters, checkpoints, logs) goes to a separate work folder.
 
+On a vantage6 node nothing has to be configured: the node mounts every database it is
+configured with at ``/mnt/<label>`` and sets ``<LABEL>_DATABASE_URI`` to that path, and the
+task names the database to use in ``USER_REQUESTED_DATABASE_LABELS``. The data folder is the
+first database the task asked for, else the first the node has.
+
 Environment variables, all optional:
 
 ``DATA_PATH``
-    The dataset folder (``Train/``, ``Validation/``, ``assets/``). On a vantage6 node this is
-    the folder database the node mounts, for example ``/mnt/argos_lung1``.
+    Overrides the dataset folder (``Train/``, ``Validation/``, ``assets/``), for running
+    outside vantage6. Without it, and without a node's database variables, ``./argos_layout``.
 ``ARGOS_WORK_DIR``
     Where derived files are written. Defaults to ``TEMPORARY_FOLDER``, which the vantage6 node
     sets to a per-run scratch volume, and otherwise to the data folder itself.
@@ -23,10 +28,35 @@ DEFAULT_DATA_DIR = "argos_layout"
 
 
 def data_dir(override: str | os.PathLike | None = None) -> Path:
-    """The dataset folder: the argument if given, else ``DATA_PATH``, else ``./argos_layout``."""
+    """The dataset folder.
+
+    In order: the argument if given; ``DATA_PATH``; the vantage6 database the task requested
+    (or, failing that, the node's first database); ``./argos_layout``.
+    """
     if override is not None:
         return Path(override)
-    return Path(os.environ.get("DATA_PATH", DEFAULT_DATA_DIR))
+    if os.environ.get("DATA_PATH"):
+        return Path(os.environ["DATA_PATH"])
+    from_node = vantage6_database_dir()
+    if from_node is not None:
+        return from_node
+    return Path(DEFAULT_DATA_DIR)
+
+
+def vantage6_database_dir() -> Path | None:
+    """The folder of the database a vantage6 node exposes to this run, or None outside a node.
+
+    The node sets ``USER_REQUESTED_DATABASE_LABELS`` (what the task asked for) and ``DB_LABELS``
+    (everything it has), and one ``<LABEL>_DATABASE_URI`` per label with the path inside this
+    container. Only labels whose URI is an existing directory qualify, so a node that also
+    holds a CSV for another algorithm is not mistaken for the image folder.
+    """
+    for variable in ("USER_REQUESTED_DATABASE_LABELS", "DB_LABELS"):
+        for label in filter(None, os.environ.get(variable, "").split(",")):
+            uri = os.environ.get(f"{label.strip().upper()}_DATABASE_URI")
+            if uri and os.path.isdir(uri):
+                return Path(uri)
+    return None
 
 
 def work_dir() -> Path:

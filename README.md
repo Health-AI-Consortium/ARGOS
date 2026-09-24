@@ -20,8 +20,9 @@ client's list is used.
 
 ## Data
 
-Each node needs a folder in the *ARGOS layout*, reachable through the `DATA_PATH` environment
-variable:
+Each node needs a folder in the *ARGOS layout*. On a vantage6 node it is the folder database
+the task names (the node sets `<LABEL>_DATABASE_URI`; ARGOS reads it). Outside vantage6 set
+`DATA_PATH`, or run from the folder that contains `argos_layout/`.
 
 ```
 Train/<patient>/CT/<z>.nii.gz             one 512x512 slice, HU clipped to [-800, 200], scaled to [0, 1]
@@ -55,8 +56,9 @@ the data folder of the node that runs the central part.
 The node configuration needs:
 
 - a **folder database** whose host path holds the layout; the node mounts it at
-  `/mnt/<label>` in the algorithm container, read-only is enough;
-- `algorithm_env` with `DATA_PATH: /mnt/<label>` and, per node, `NODE_ID`;
+  `/mnt/<label>` in the algorithm container and ARGOS finds it there, read-only is enough;
+- when the task names no database, the node's first folder database is used;
+- `algorithm_env` with `NODE_ID` per node, to pick that node's patient split;
 - a GPU: `algorithm_device_requests: {gpu: true}` and the NVIDIA container toolkit on the host;
 - the image on the allowlist.
 

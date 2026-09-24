@@ -11,6 +11,7 @@ os.environ['CUDA_MODULE_LOADING'] = 'LAZY'       # reduces noisy CUDA init messa
 os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'  # also helps with fragmentation
 os.environ['TF_DISABLE_MLIR_CRASH_REPRODUCER'] = '1'
 import tensorflow as tf
+from .paths import data_dir
 from .preprocess import preprocess
 from .run_online import main, dice_bce
 # from .local import *
@@ -44,8 +45,8 @@ def train_locally(config: dict, model_weights: list):
     except tf.errors.UnavailableError:
         pass  # profiler wasn't running, that's fine
 
-    print(f'starting preprocessing with data path: {os.environ.get("DATA_PATH", None)}')
-    work = preprocess(os.environ.get('DATA_PATH', None))
+    print(f'starting preprocessing with data path: {data_dir()}')
+    work = preprocess()
     print(f"finished preprocessing, derived files in {work}; starting training..", flush = True)
     return main(model_weights, config)
  

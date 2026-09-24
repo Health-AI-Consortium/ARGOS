@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from argosfeddeep.paths import resolve_slice_line, resolve_slice_path, work_dir
+from argosfeddeep.paths import data_dir, resolve_slice_line, resolve_slice_path, work_dir
 from argosfeddeep.preprocess import preprocess
 
 
@@ -26,6 +26,43 @@ class ResolveSlicePath(unittest.TestCase):
         self.assertEqual(resolved.split(",")[-1], " 1")
         self.assertEqual(int(resolved.split(",")[-1]), 1)
         self.assertTrue(all(field.startswith("/mnt/argos/") for field in resolved.split(",")[:3]))
+
+
+class DataDirFromNode(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.folder = Path(self.tmp.name) / "scans"
+        self.folder.mkdir()
+        self.csv = Path(self.tmp.name) / "rows.csv"
+        self.csv.write_text("id\n")
+        self.clean = {k: v for k, v in os.environ.items() if k != "DATA_PATH"}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_requested_database_wins(self):
+        env = {
+            "DB_LABELS": "rows,scans",
+            "USER_REQUESTED_DATABASE_LABELS": "scans",
+            "ROWS_DATABASE_URI": str(self.csv),
+            "SCANS_DATABASE_URI": str(self.folder),
+        }
+        with mock.patch.dict(os.environ, {**self.clean, **env}, clear=True):
+            self.assertEqual(data_dir(), self.folder)
+
+    def test_falls_back_to_the_first_folder_database(self):
+        env = {"DB_LABELS": "rows,scans", "ROWS_DATABASE_URI": str(self.csv), "SCANS_DATABASE_URI": str(self.folder)}
+        with mock.patch.dict(os.environ, {**self.clean, **env}, clear=True):
+            self.assertEqual(data_dir(), self.folder)
+
+    def test_data_path_overrides_the_node(self):
+        env = {"DB_LABELS": "scans", "SCANS_DATABASE_URI": str(self.folder), "DATA_PATH": "/elsewhere"}
+        with mock.patch.dict(os.environ, {**self.clean, **env}, clear=True):
+            self.assertEqual(data_dir(), Path("/elsewhere"))
+
+    def test_default_outside_a_node(self):
+        with mock.patch.dict(os.environ, self.clean, clear=True):
+            self.assertEqual(data_dir(), Path("argos_layout"))
 
 
 class Preprocess(unittest.TestCase):
