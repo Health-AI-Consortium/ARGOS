@@ -19,9 +19,6 @@ Environment variables, all optional:
 import os
 from pathlib import Path
 
-AUTHOR_PREFIX = "/Users/palan001/Desktop/Health-AI/ARGOS/data/nsclc_radiomics_v4/argos_layout"
-"""Absolute prefix found in slice indexes made before the indexes became relative."""
-
 DEFAULT_DATA_DIR = "argos_layout"
 
 
@@ -51,16 +48,14 @@ def checkpoint_dir() -> Path:
 def resolve_slice_path(path: str, data: Path) -> str:
     """Turn one slice path from an index into an absolute path under the data folder.
 
-    Indexes written by ``sort_slices`` hold paths relative to the data folder. Older indexes
-    hold absolute paths from the machine they were made on; those are re-rooted when they
-    start with the known prefix. Any other absolute path is returned unchanged.
+    Indexes written by ``sort_slices`` hold paths relative to the data folder. An absolute
+    path is returned unchanged; an index that holds absolute paths from another machine has
+    to be rebuilt with ``python -m argosfeddeep.sort_slices``.
     """
     text = path.strip()
-    if text.startswith(AUTHOR_PREFIX):
-        return str(data / text[len(AUTHOR_PREFIX):].lstrip("/"))
-    if not os.path.isabs(text):
-        return str(data / text)
-    return text
+    if os.path.isabs(text):
+        return text
+    return str(data / text)
 
 
 def resolve_slice_line(line: str, data: Path) -> str:

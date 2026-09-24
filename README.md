@@ -39,8 +39,8 @@ Build the two index files with:
 python -m argosfeddeep.sort_slices /path/to/argos_layout
 ```
 
-Indexes made before this version hold absolute paths from the machine they were built on; they
-still work, the known prefix is re-rooted at run time.
+Indexes made before this version hold absolute paths from the machine they were built on and
+must be rebuilt once with the command above.
 
 **The data folder is only read.** Everything ARGOS derives from it (resolved indexes,
 `params.json`, checkpoints) is written to a work folder: `ARGOS_WORK_DIR` if set, else

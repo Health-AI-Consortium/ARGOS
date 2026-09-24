@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from argosfeddeep.paths import AUTHOR_PREFIX, resolve_slice_line, resolve_slice_path, work_dir
+from argosfeddeep.paths import resolve_slice_line, resolve_slice_path, work_dir
 from argosfeddeep.preprocess import preprocess
 
 
@@ -17,11 +17,7 @@ class ResolveSlicePath(unittest.TestCase):
     def test_relative_paths_are_rooted_at_the_data_folder(self):
         self.assertEqual(resolve_slice_path("Train/P1/CT/3.nii.gz", self.data), "/mnt/argos/Train/P1/CT/3.nii.gz")
 
-    def test_author_prefix_is_rerooted(self):
-        old = f"{AUTHOR_PREFIX}/Train/P1/CT/3.nii.gz"
-        self.assertEqual(resolve_slice_path(old, self.data), "/mnt/argos/Train/P1/CT/3.nii.gz")
-
-    def test_other_absolute_paths_are_kept(self):
+    def test_absolute_paths_are_kept(self):
         self.assertEqual(resolve_slice_path("/elsewhere/x.nii.gz", self.data), "/elsewhere/x.nii.gz")
 
     def test_line_keeps_the_label(self):
