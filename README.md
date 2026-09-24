@@ -1,92 +1,72 @@
-# argos-full-algorithm
+# ARGOS on vantage6
 
+Federated deep learning for lung tumour (GTV) segmentation on CT, reimplemented as a
+[vantage6](https://vantage6.ai) 4.15 algorithm. A central task averages model weights over
+training rounds; each participating node trains locally on its own CT slices and returns its
+weights and metrics.
 
+## Functions
 
-## Getting started
+| Function | Runs on | Purpose |
+| --- | --- | --- |
+| `central(config, participating_ids)` | one node | Runs `num_rounds` rounds: sends the current weights to every participating organisation, averages what comes back, saves a checkpoint every `save_central_model_step` rounds, returns per-round metrics and, unless `return_final_weights` is false, the final averaged weights. |
+| `train_locally(config, model_weights)` | every data node | Resolves the slice indexes for this machine, trains for `num_steps` steps from the given weights, returns `model weights` and `metrics`. |
+| `test_gpu()` | any node | Prints what TensorFlow sees of the GPU. |
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+`config` is the content of [`config.json`](config.json): model and training parameters plus the
+patient split per client (`client<i>_train_samples`, `client<i>_val_samples`). A node picks its
+split with the `NODE_ID` environment variable (default `0`); with `central_eval: true` every
+client's list is used.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+## Data
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+Each node needs a folder in the *ARGOS layout*, reachable through the `DATA_PATH` environment
+variable:
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/a8555/fed_gpu_test.git
-git branch -M main
-git push -uf origin main
+Train/<patient>/CT/<z>.nii.gz             one 512x512 slice, HU clipped to [-800, 200], scaled to [0, 1]
+Train/<patient>/GT/GTV/<z>_gtv.nii.gz     GTV mask for that slice, 0/1
+Train/<patient>/GT/Lung/<z>_lung.nii.gz   lung mask for that slice, 0/1
+Validation/<patient>/...                  the same for validation patients
+assets/slices_training_800200.json        {patient: ["<ct>,<gtv>,<lung>, <1 if GTV on slice else 0>", ...]}
+assets/slices_validation_800200.json      paths relative to this folder
+assets/params_base.json                   training parameters without the client split
 ```
 
-## Integrate with your tools
+Build the two index files with:
 
-- [ ] [Set up project integrations](https://gitlab.com/a8555/fed_gpu_test/-/settings/integrations)
+```sh
+python -m argosfeddeep.sort_slices /path/to/argos_layout
+```
 
-## Collaborate with your team
+Indexes made before this version hold absolute paths from the machine they were built on; they
+still work, the known prefix is re-rooted at run time.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+**The data folder is only read.** Everything ARGOS derives from it (resolved indexes,
+`params.json`, checkpoints) is written to a work folder: `ARGOS_WORK_DIR` if set, else
+`TEMPORARY_FOLDER`, which a vantage6 node sets to a per-run scratch volume, else the data
+folder. The central part saves checkpoints under `ARGOS_CHECKPOINT_DIR`, default
+`<work folder>/model_checkpoints`; since that is scratch space, the final averaged weights are
+also part of the central result. Initial weights named by `config["init_weights"]` are read from
+the data folder of the node that runs the central part.
 
-## Test and Deploy
+## Running on a vantage6 node
 
-Use the built-in continuous integration in GitLab.
+The node configuration needs:
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- a **folder database** whose host path holds the layout; the node mounts it at
+  `/mnt/<label>` in the algorithm container, read-only is enough;
+- `algorithm_env` with `DATA_PATH: /mnt/<label>` and, per node, `NODE_ID`;
+- a GPU: `algorithm_device_requests: {gpu: true}` and the NVIDIA container toolkit on the host;
+- the image on the allowlist.
 
-***
+## Development
 
-# Editing this README
+```sh
+uv sync
+python -m unittest discover tests            # path handling and preprocessing, no TensorFlow needed
+docker build -t argos .
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+`main.py`, `test.py` and `get_results.py` are client-side scripts and expect a `credentials.py`
+next to them (ignored by git) with `server_url`, `server_port`, `server_api`, `usn`, `psswrd`.

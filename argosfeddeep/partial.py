@@ -45,8 +45,8 @@ def train_locally(config: dict, model_weights: list):
         pass  # profiler wasn't running, that's fine
 
     print(f'starting preprocessing with data path: {os.environ.get("DATA_PATH", None)}')
-    preprocess(os.environ.get('DATA_PATH', None))
-    print("finished preprocessing, starting training..", flush = True)
+    work = preprocess(os.environ.get('DATA_PATH', None))
+    print(f"finished preprocessing, derived files in {work}; starting training..", flush = True)
     return main(model_weights, config)
  
 

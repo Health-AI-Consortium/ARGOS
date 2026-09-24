@@ -5,6 +5,7 @@ from vantage6.algorithm.tools.util import info, warn, error
 from vantage6.algorithm.tools.decorators import algorithm_client
 from vantage6.algorithm.client import AlgorithmClient
 from argosfeddeep.models import mod_resnet
+from argosfeddeep.paths import checkpoint_dir, data_dir
 from argosfeddeep.run_online import dice_bce
 from argosfeddeep.utils import compute_average_weight
 import tensorflow as tf
@@ -84,7 +85,8 @@ def central(
 
     init_weights_file = config.get("init_weights", None)
     if init_weights_file is not None:
-        init_weights_path = f'{os.environ.get("DATA_PATH")}/{init_weights_file}'
+        init_weights_path = os.path.join(data_dir(), init_weights_file)
+        info(f"Loading initial weights from {init_weights_path}")
         init_model.load_weights(init_weights_path)
 
     init_weights = init_model.get_weights()
@@ -150,11 +152,15 @@ def central(
         # arguably this might not matter much, we have to transfer the global model to the clients either way 
         averaged_weights = compute_average_weight(local_weights_list)
         if round % config['save_central_model_step'] == 0:
-            info("saving model weights")
-            save_dir = f'{os.environ.get("DATA_PATH")}/model_checkpoints/{current_time}'
+            save_dir = os.path.join(checkpoint_dir(), current_time)
             os.makedirs(save_dir, exist_ok=True)
+            info(f"saving model weights to {save_dir}")
             init_model.set_weights(averaged_weights)
             init_model.save_weights(f'{save_dir}/iteration{round}.weights.h5')
         # aggregated_model_path, model_name = avg.fed_average(node_model_path,iteration=variables['iteration'])
         weights_list  = [weight.tolist() for weight in averaged_weights ]
+    if config.get("return_final_weights", True):
+        # The checkpoint folder is scratch space on the node that ran this task; the
+        # averaged model only leaves the node as part of the result.
+        results["final_weights"] = weights_list
     return results
