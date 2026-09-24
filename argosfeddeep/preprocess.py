@@ -45,12 +45,12 @@ def divide_slices(slice_names, return_key):
     }
 
 
-def preprocess(updated_path: str = None) -> Path:
-    """Write the resolved indexes and parameters for the data at ``updated_path``.
+def preprocess() -> Path:
+    """Write the resolved indexes and parameters for the node's data folder.
 
     Returns the work folder the files were written to.
     """
-    data = data_dir(updated_path)
+    data = data_dir()
     work = work_dir()
 
     train_base_path = data / "assets" / "slices_training_800200.json"

@@ -20,9 +20,9 @@ client's list is used.
 
 ## Data
 
-Each node needs a folder in the *ARGOS layout*. On a vantage6 node it is the folder database
-the task names (the node sets `<LABEL>_DATABASE_URI`; ARGOS reads it). Outside vantage6 set
-`DATA_PATH`, or run from the folder that contains `argos_layout/`.
+Each node needs a folder database in the *ARGOS layout*. The task names it, the node sets
+`<LABEL>_DATABASE_URI`, and ARGOS reads that; when the task names none, the node's first
+folder database is used.
 
 ```
 Train/<patient>/CT/<z>.nii.gz             one 512x512 slice, HU clipped to [-800, 200], scaled to [0, 1]
@@ -44,12 +44,15 @@ Indexes made before this version hold absolute paths from the machine they were 
 must be rebuilt once with the command above.
 
 **The data folder is only read.** Everything ARGOS derives from it (resolved indexes,
-`params.json`, checkpoints) is written to a work folder: `ARGOS_WORK_DIR` if set, else
-`TEMPORARY_FOLDER`, which a vantage6 node sets to a per-run scratch volume, else the data
-folder. The central part saves checkpoints under `ARGOS_CHECKPOINT_DIR`, default
-`<work folder>/model_checkpoints`; since that is scratch space, the final averaged weights are
-also part of the central result. Initial weights named by `config["init_weights"]` are read from
-the data folder of the node that runs the central part.
+`params.json`, checkpoints) is written to `TEMPORARY_FOLDER`, the per-run scratch volume the
+vantage6 node provides. Because that folder is discarded after the run, the final averaged
+weights are also part of the central result. Initial weights named by `config["init_weights"]`
+are read from the data folder of the node that runs the central part.
+
+ARGOS runs inside a vantage6 algorithm container and nowhere else: it finds its data through the
+node's `USER_REQUESTED_DATABASE_LABELS`, `DB_LABELS` and `<LABEL>_DATABASE_URI` variables. To
+call the functions outside a node, use vantage6's `MockAlgorithmClient`, or set those variables
+and `TEMPORARY_FOLDER` by hand.
 
 ## Running on a vantage6 node
 
@@ -70,5 +73,6 @@ python -m unittest discover tests            # path handling and preprocessing, 
 docker build -t argos .
 ```
 
-`main.py`, `test.py` and `get_results.py` are client-side scripts and expect a `credentials.py`
-next to them (ignored by git) with `server_url`, `server_port`, `server_api`, `usn`, `psswrd`.
+`client/main.py` starts a central task and `client/get_results.py` fetches a task's results.
+Both expect a `credentials.py` next to them (ignored by git) with `server_url`, `server_port`,
+`server_api`, `usn`, `psswrd`, `private_key` (path) and `algorithm_image`.

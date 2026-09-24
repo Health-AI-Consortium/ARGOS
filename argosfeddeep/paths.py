@@ -1,76 +1,49 @@
 """Where ARGOS reads its data and where it writes the files it derives from it.
 
-The data folder is read-only by intent: a vantage6 node may mount it read-only, and the same
-folder is shared by every algorithm the node allows. Everything ARGOS produces (resolved slice
-indexes, parameters, checkpoints, logs) goes to a separate work folder.
+ARGOS runs inside a vantage6 algorithm container and nowhere else, so every location comes
+from what the node sets and nothing has to be configured:
 
-On a vantage6 node nothing has to be configured: the node mounts every database it is
-configured with at ``/mnt/<label>`` and sets ``<LABEL>_DATABASE_URI`` to that path, and the
-task names the database to use in ``USER_REQUESTED_DATABASE_LABELS``. The data folder is the
-first database the task asked for, else the first the node has.
+- The node mounts each of its databases at ``/mnt/<label>`` and sets ``<LABEL>_DATABASE_URI``
+  to that path. The task names the database to use in ``USER_REQUESTED_DATABASE_LABELS``;
+  ``DB_LABELS`` lists everything the node has. The data folder is the first requested label
+  whose path is a directory, else the node's first directory database.
+- ``TEMPORARY_FOLDER`` is a scratch volume the node creates for this run and discards after
+  it. Everything ARGOS produces (resolved slice indexes, parameters, checkpoints) goes there,
+  so the data folder is only read and can be mounted read-only.
 
-Environment variables, all optional:
-
-``DATA_PATH``
-    Overrides the dataset folder (``Train/``, ``Validation/``, ``assets/``), for running
-    outside vantage6. Without it, and without a node's database variables, ``./argos_layout``.
-``ARGOS_WORK_DIR``
-    Where derived files are written. Defaults to ``TEMPORARY_FOLDER``, which the vantage6 node
-    sets to a per-run scratch volume, and otherwise to the data folder itself.
-``ARGOS_CHECKPOINT_DIR``
-    Where the central part saves averaged weights. Defaults to ``<work dir>/model_checkpoints``.
+To run the functions outside a node, set those three variables by hand or use vantage6's
+``MockAlgorithmClient``, which sets them the way the node does.
 """
 
 import os
 from pathlib import Path
 
-DEFAULT_DATA_DIR = "argos_layout"
 
-
-def data_dir(override: str | os.PathLike | None = None) -> Path:
-    """The dataset folder.
-
-    In order: the argument if given; ``DATA_PATH``; the vantage6 database the task requested
-    (or, failing that, the node's first database); ``./argos_layout``.
-    """
-    if override is not None:
-        return Path(override)
-    if os.environ.get("DATA_PATH"):
-        return Path(os.environ["DATA_PATH"])
-    from_node = vantage6_database_dir()
-    if from_node is not None:
-        return from_node
-    return Path(DEFAULT_DATA_DIR)
-
-
-def vantage6_database_dir() -> Path | None:
-    """The folder of the database a vantage6 node exposes to this run, or None outside a node.
-
-    The node sets ``USER_REQUESTED_DATABASE_LABELS`` (what the task asked for) and ``DB_LABELS``
-    (everything it has), and one ``<LABEL>_DATABASE_URI`` per label with the path inside this
-    container. Only labels whose URI is an existing directory qualify, so a node that also
-    holds a CSV for another algorithm is not mistaken for the image folder.
-    """
+def data_dir() -> Path:
+    """The dataset folder (``Train/``, ``Validation/``, ``assets/``) the node mounted."""
+    seen = []
     for variable in ("USER_REQUESTED_DATABASE_LABELS", "DB_LABELS"):
         for label in filter(None, os.environ.get(variable, "").split(",")):
             uri = os.environ.get(f"{label.strip().upper()}_DATABASE_URI")
+            seen.append(f"{label.strip()}={uri}")
             if uri and os.path.isdir(uri):
                 return Path(uri)
-    return None
+    raise RuntimeError(
+        "no folder database found; the node must be configured with a database of type "
+        f"folder holding the ARGOS layout (databases seen: {', '.join(seen) or 'none'})"
+    )
 
 
 def work_dir() -> Path:
-    """The folder for derived files, created on first use with an ``assets`` subfolder."""
-    chosen = os.environ.get("ARGOS_WORK_DIR") or os.environ.get("TEMPORARY_FOLDER")
-    root = Path(chosen) if chosen else data_dir()
+    """The per-run scratch folder for derived files, with an ``assets`` subfolder."""
+    root = Path(os.environ["TEMPORARY_FOLDER"])
     (root / "assets").mkdir(parents=True, exist_ok=True)
     return root
 
 
 def checkpoint_dir() -> Path:
-    """Where averaged weights are saved during central training."""
-    chosen = os.environ.get("ARGOS_CHECKPOINT_DIR")
-    root = Path(chosen) if chosen else work_dir() / "model_checkpoints"
+    """Where the central part saves averaged weights: scratch space on the node running it."""
+    root = work_dir() / "model_checkpoints"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

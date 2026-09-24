@@ -35,7 +35,7 @@ class DataDirFromNode(unittest.TestCase):
         self.folder.mkdir()
         self.csv = Path(self.tmp.name) / "rows.csv"
         self.csv.write_text("id\n")
-        self.clean = {k: v for k, v in os.environ.items() if k != "DATA_PATH"}
+        self.clean = {k: v for k, v in os.environ.items() if not k.endswith(("_LABELS", "_DATABASE_URI"))}
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -55,14 +55,12 @@ class DataDirFromNode(unittest.TestCase):
         with mock.patch.dict(os.environ, {**self.clean, **env}, clear=True):
             self.assertEqual(data_dir(), self.folder)
 
-    def test_data_path_overrides_the_node(self):
-        env = {"DB_LABELS": "scans", "SCANS_DATABASE_URI": str(self.folder), "DATA_PATH": "/elsewhere"}
+    def test_no_folder_database_is_an_error_naming_what_was_seen(self):
+        env = {"DB_LABELS": "rows", "ROWS_DATABASE_URI": str(self.csv)}
         with mock.patch.dict(os.environ, {**self.clean, **env}, clear=True):
-            self.assertEqual(data_dir(), Path("/elsewhere"))
-
-    def test_default_outside_a_node(self):
-        with mock.patch.dict(os.environ, self.clean, clear=True):
-            self.assertEqual(data_dir(), Path("argos_layout"))
+            with self.assertRaises(RuntimeError) as raised:
+                data_dir()
+        self.assertIn("rows=", str(raised.exception))
 
 
 class Preprocess(unittest.TestCase):
@@ -80,10 +78,15 @@ class Preprocess(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_writes_to_the_work_folder_and_leaves_the_data_folder_alone(self):
-        env = {"DATA_PATH": str(self.data), "ARGOS_WORK_DIR": str(self.work)}
+    def test_writes_to_the_temporary_folder_and_leaves_the_data_folder_alone(self):
+        env = {
+            "DB_LABELS": "scans",
+            "USER_REQUESTED_DATABASE_LABELS": "scans",
+            "SCANS_DATABASE_URI": str(self.data),
+            "TEMPORARY_FOLDER": str(self.work),
+        }
         with mock.patch.dict(os.environ, env, clear=False):
-            returned = preprocess(None)
+            returned = preprocess()
         self.assertEqual(returned, self.work)
         modified = json.loads((self.work / "assets" / "slices_training_modified.json").read_text())
         self.assertTrue(modified["P0"][0].startswith(str(self.data)))
@@ -93,11 +96,13 @@ class Preprocess(unittest.TestCase):
         after = sorted(p.relative_to(self.data) for p in self.data.rglob("*"))
         self.assertEqual(self.before, after)
 
-    def test_temporary_folder_is_the_default_work_folder(self):
-        env = {"DATA_PATH": str(self.data), "TEMPORARY_FOLDER": str(self.work)}
-        with mock.patch.dict(os.environ, env, clear=False):
-            os.environ.pop("ARGOS_WORK_DIR", None)
+    def test_work_dir_requires_the_temporary_folder(self):
+        with mock.patch.dict(os.environ, {"TEMPORARY_FOLDER": str(self.work)}, clear=False):
             self.assertEqual(work_dir(), self.work)
+        clean = {k: v for k, v in os.environ.items() if k != "TEMPORARY_FOLDER"}
+        with mock.patch.dict(os.environ, clean, clear=True):
+            with self.assertRaises(KeyError):
+                work_dir()
 
 
 if __name__ == "__main__":

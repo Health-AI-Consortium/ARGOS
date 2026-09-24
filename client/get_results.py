@@ -13,8 +13,7 @@ client = Client(
     credentials.server_url, credentials.server_port, credentials.server_api, log_level = 'debug'
 )
 client.authenticate(credentials.usn, credentials.psswrd)
-client.setup_encryption("/home/swier/Documents/healthAI_argos/private_key")
-# client.setup_encryption("/home/swier/Documents/private_key_ARGOS4")
+client.setup_encryption(credentials.private_key)
 
 
 results = client.result.from_task(task_id)

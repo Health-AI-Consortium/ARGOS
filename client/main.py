@@ -2,13 +2,9 @@
 main entry point for running the ARGOS usecase on Vantage6
 """
 
-from argosfeddeep.run_online import dice_bce
-from argosfeddeep.models import mod_resnet
-from vantage6.algorithm.tools.mock_client import MockAlgorithmClient
 from vantage6.client import UserClient as Client
 from pathlib import Path
 import json
-import tensorflow as tf
 import credentials
 import numpy as np
 import time
@@ -26,7 +22,7 @@ def main(client: Client, input: dict, organizations: list):
         input_= input,
         organizations=organizations,
         # organizations=[3],
-        image = "sgarst/argos:0.9.0",
+        image = credentials.algorithm_image,
         collaboration = collab,
         name="argos_central",
         description="central part of argos algorithm"
@@ -42,12 +38,7 @@ def main(client: Client, input: dict, organizations: list):
 
 
 if __name__ == "__main__":
-    local_config_path = "/home/swier/Documents/healthAI_argos/config.json"
-
-    current_path = Path(__file__).parent
-    data_path = f'{current_path}/../argos_dataset/argos_layout/'
-
-  
+    local_config_path = Path(__file__).resolve().parents[1] / "config.json"
 
     # read in config file
     with open(local_config_path, "r") as fp:
@@ -59,7 +50,7 @@ if __name__ == "__main__":
         credentials.server_url, credentials.server_port, credentials.server_api, log_level = 'debug'
     )
     client.authenticate(credentials.usn, credentials.psswrd)
-    client.setup_encryption("/home/swier/Documents/healthAI_argos/private_key")
+    client.setup_encryption(credentials.private_key)
     
     organizations = client.organization.list()['data']
     selected_orgs = np.array(organizations)[[org['name'].startswith('ARGOS') for org in organizations]]
