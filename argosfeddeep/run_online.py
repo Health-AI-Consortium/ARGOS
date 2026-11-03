@@ -2,7 +2,7 @@ import os
 from statistics import mode
 from time import sleep
 import time
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import numpy as np
 import json

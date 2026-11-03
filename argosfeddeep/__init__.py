@@ -8,12 +8,20 @@ can be used and tested without loading it.
 
 import importlib
 
-_FUNCTION_MODULES = (".central", ".partial")
+# _FUNCTION_MODULES = (".central", ".partial")
 
 
-def __getattr__(name: str):
-    for module_name in _FUNCTION_MODULES:
-        module = importlib.import_module(module_name, __name__)
-        if hasattr(module, name):
-            return getattr(module, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+# def __getattr__(name: str):
+#     for module_name in _FUNCTION_MODULES:
+#         module = importlib.import_module(module_name, __name__)
+#         if hasattr(module, name):
+#             return getattr(module, name)
+#     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+_FUNCTIONS = {"central": ".central", "test_central": ".central", "test_gpu": ".central",
+                "train_locally": ".partial", "test_train_locally": ".partial",
+                "pass_weights_back": ".partial"}
+def __getattr__(name):
+    if name in _FUNCTIONS:
+        return getattr(importlib.import_module(_FUNCTIONS[name], __name__), name)
+    raise AttributeError(name)
