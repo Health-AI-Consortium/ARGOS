@@ -12,6 +12,9 @@ RUN apt-get update && \
 
 RUN python --version
 
+ENV TF_CPP_MIN_LOG_LEVEL=3
+ENV TF_GPU_ALLOCATOR=cuda_malloc_async   
+
 WORKDIR /app
 
 # Upgrade pip/setuptools first (cached unless this layer is invalidated)

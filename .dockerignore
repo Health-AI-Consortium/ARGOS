@@ -1,0 +1,11 @@
+.git
+.github
+.env
+credentials.py
+private_key
+__pycache__
+*.pyc
+logs
+.venv
+*.egg-info
+client

@@ -2,7 +2,7 @@ import os
 from statistics import mode
 from time import sleep
 import time
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import tensorflow as tf
 import numpy as np
 import json
@@ -14,13 +14,8 @@ from tensorflow.keras import losses
 import argosfeddeep.utils as utl
 import argosfeddeep.data_augmentation as aug
 import argosfeddeep.models as mod
+from argosfeddeep.paths import work_dir
 from typing import Any
-
-
-local_test_path = "/home/swier/Documents/argos_dataset/argos_layout/"
-data_path = os.environ.get('DATA_PATH', local_test_path)
-# data_path = local_test_path
-# data_path = '/mnt/data'
 
 #with open (os.path.join(param_dir, params_file),'w') as fp:
   #  json.dump(params,fp)
@@ -259,6 +254,22 @@ def _end_graph_tensorflow(self):
         tf.summary.trace_export(name="graph", step=0)
 
 
+def client_samples(params: dict, node_id, kind: str) -> list:
+    """The patient names this node trains or validates on.
+
+    With ``central_eval`` set, every client's list is used; otherwise the list for
+    ``client<node_id>``. ``kind`` is ``train_samples`` or ``val_samples``.
+    """
+    if params.get('central_eval', False):
+        names = []
+        index = 0
+        while f'client{index}_{kind}' in params:
+            names.extend(params[f'client{index}_{kind}'])
+            index += 1
+        return names
+    return list(params[f'client{node_id}_{kind}'])
+
+
 def get_batch_full(ct_slices, client_ct_slices, params):# params, client_id):
     # ct_path = os.path.join(patient_path, 'CT')
     # gt_path = os.path.join(patient_path, 'GT')
@@ -374,8 +385,6 @@ def main(model_weights: Any, params: dict):
         return predictions
 
 
-    sort_slices(os.path.join(data_path,'Train/'),'slices_training_modified.json')
-    sort_slices(os.path.join(data_path,'Validation/'),'slices_validation_modified.json')
     # Define loss function
     loss_list = []
     loss_function = dice_bce
@@ -437,9 +446,10 @@ def main(model_weights: Any, params: dict):
     val_summary_writer = tf.summary.create_file_writer(val_log_dir)
 
     print("reading training and validation slices", flush = True)
-    # Load training and validation data
-    train_slices = utl.read_slices(os.path.join(data_path,'assets','slices_training_modified.json'))
-    validation_slices = utl.read_slices(os.path.join(data_path,'assets','slices_validation_modified.json'))
+    # Load training and validation data, resolved for this machine by preprocess()
+    work = work_dir()
+    train_slices = utl.read_slices(os.path.join(work, 'assets', 'slices_training_modified.json'))
+    validation_slices = utl.read_slices(os.path.join(work, 'assets', 'slices_validation_modified.json'))
     
 
     iteration_number = list()
@@ -451,15 +461,13 @@ def main(model_weights: Any, params: dict):
     template = 'Iteration {}, Loss: {:.5}, Dice: {:.5}'
 
     node_id = os.environ.get('NODE_ID', 0)
+    client_train_slices = client_samples(params, node_id, 'train_samples')
+    client_val_slices = client_samples(params, node_id, 'val_samples')
 
     print("starting training loop", flush = True)
     # Start training loop
     for iteration_deep in range(0, params['num_steps'] + 1):
         # _start_graph_tensorflow(train_log_dir)
-        if params.get['central_eval', False] == True:
-            client_train_slices = np.concat([f'client{i}_train_samples' for i in range(2)])
-        else:
-            client_train_slices = params[f'client{node_id}_train_samples']
         ct_batch, gt_batch = get_batch_full(train_slices, client_train_slices, params)
         # print("got training batch, training now..")
 
@@ -487,10 +495,6 @@ def main(model_weights: Any, params: dict):
         if iteration_deep % params['val_eval_step'] == 0:
             # ct_batch_val, gt_batch_val = dset_val
 
-            if params.get['central_eval', False] == True:
-                client_val_slices = np.concat([f'client{i}_val_samples' for i in range(2)])
-            else:
-                client_val_slices = params[f'client{node_id}_val_samples']
             ct_batch_val, gt_batch_val = get_batch_full(validation_slices, client_val_slices, params)
             val_pred = validate_on_batch(ct_batch_val, gt_batch_val)
 
@@ -525,8 +529,8 @@ def main(model_weights: Any, params: dict):
 
         # Save the model at predefined step numbers.
         if iteration_deep % params['save_model_step'] == 0:
-            model.save(f'{saved_model_path}model_{iteration_deep}.keras')
-            model.save_weights(f'{saved_weights_path}model_weights_{iteration_deep}.weights.h5')
+            model.save(os.path.join(saved_model_path, f'model_{iteration_deep}.keras'))
+            model.save_weights(os.path.join(saved_weights_path, f'model_weights_{iteration_deep}.weights.h5'))
             # model.save_weights(os.path.join(saved_weights_path,
             #                                 'model_weights' + str(iteration_deep) + '.h5'))
 

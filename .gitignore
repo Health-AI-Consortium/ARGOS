@@ -4,3 +4,9 @@ credentials.py
 *.egg-info
 private_key
 .flake
+__pycache__/
+*.pyc
+.env
+logs/
+.venv/
+client/credentials.py

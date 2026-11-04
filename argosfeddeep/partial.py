@@ -5,12 +5,13 @@ from vantage6.algorithm.tools.util import info, warn, error
 import argosfeddeep.models as mod
 from vantage6.algorithm.tools.decorators import data
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'        # suppresses INFO and WARNING from TF C++ backend
-os.environ['CUDA_MODULE_LOADING'] = 'LAZY'       # reduces noisy CUDA init messages
-os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'  # also helps with fragmentation
-os.environ['TF_DISABLE_MLIR_CRASH_REPRODUCER'] = '1'
+# import os
+# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'        # suppresses INFO and WARNING from TF C++ backend
+# os.environ['CUDA_MODULE_LOADING'] = 'LAZY'       # reduces noisy CUDA init messages
+# os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'  # also helps with fragmentation
+# os.environ['TF_DISABLE_MLIR_CRASH_REPRODUCER'] = '1'
 import tensorflow as tf
+from .paths import data_dir
 from .preprocess import preprocess
 from .run_online import main, dice_bce
 # from .local import *
@@ -44,9 +45,9 @@ def train_locally(config: dict, model_weights: list):
     except tf.errors.UnavailableError:
         pass  # profiler wasn't running, that's fine
 
-    print(f'starting preprocessing with data path: {os.environ.get("DATA_PATH", None)}')
-    preprocess(os.environ.get('DATA_PATH', None))
-    print("finished preprocessing, starting training..", flush = True)
+    print(f'starting preprocessing with data path: {data_dir()}')
+    work = preprocess()
+    print(f"finished preprocessing, derived files in {work}; starting training..", flush = True)
     return main(model_weights, config)
  
 
